@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>バンド日程調整</title>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef3ea;--card:#fff;--ink:#23272b;--sub:#6a7068;--line:#dde3d8;--accent:#3f8f22;--accent2:#2f6f18;
+  --ok:#3f8f22;--okbg:#dff0d6;--maybe:#b7791f;--maybebg:#fbf0d9;--ng:#b54646;--ngbg:#f6e2df;--unk:#9a9e98;--unkbg:#f0f1ee;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",system-ui,sans-serif;font-size:15px;line-height:1.5}
+header{padding:16px 16px 4px;max-width:1000px;margin:0 auto}
+h1{font-size:20px;margin:0;display:flex;gap:8px;align-items:center}
+h1 .flag{color:var(--accent)}
+#memoView{color:var(--sub);font-size:13px;margin:4px 0 0;white-space:pre-wrap}
+#status{margin:4px 0 0;font-size:12px;color:var(--sub);min-height:1.1em}
+#status.warn{color:var(--ng)}
+.tabs{display:flex;gap:6px;padding:8px 16px;max-width:1000px;margin:0 auto;position:sticky;top:0;background:var(--bg);z-index:20}
+.tabs button{flex:1;border:1px solid var(--line);background:var(--card);padding:9px 6px;border-radius:10px;font:inherit;font-weight:500;color:var(--sub);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+main{max-width:1000px;margin:0 auto;padding:4px 16px 60px}
+section{display:none}section.active{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+.card h2{font-size:15px;margin:0 0 10px;padding-left:8px;border-left:4px solid var(--accent)}
+.hint{color:var(--sub);font-size:13px;margin:4px 0}
+.empty{color:var(--sub);text-align:center;padding:26px 10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font:inherit;cursor:pointer;color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.small{padding:3px 10px;font-size:13px}
+.chip.ghost{color:var(--sub);border-style:dashed}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;font:inherit;cursor:pointer;color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:var(--ng)}
+.btn.armed{background:var(--ng);color:#fff;border-color:var(--ng)}
+.btn:disabled{opacity:.5;cursor:default}
+input[type=text],select,textarea{font:inherit;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;color:var(--ink);min-width:0}
+textarea{width:100%;resize:vertical;min-height:60px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row input[type=text]{flex:1}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;font-weight:700;margin-bottom:4px}
+.field input[type=text]{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:720px){.grid2{grid-template-columns:1fr}}
+
+/* calendar */
+.cal{background:#f7f5ec;border:1px solid var(--line);border-radius:12px;padding:8px;user-select:none}
+.calhead{display:flex;align-items:center;justify-content:space-between;padding:4px 6px 8px;font-weight:700}
+.calhead button{border:0;background:none;font-size:20px;cursor:pointer;color:var(--ink);padding:0 8px}
+.calhead button:disabled{opacity:.25}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.calgrid .wd{text-align:center;font-size:12px;font-weight:700;color:var(--sub)}
+.calgrid .wd.sun{color:var(--ng)}.calgrid .wd.sat{color:#3a62a8}
+.day{aspect-ratio:1.25;border:0;border-radius:6px;font:inherit;font-weight:700;cursor:pointer;background:#fff;color:var(--ink)}
+.day:disabled{background:transparent;color:#c3c7bf;cursor:default}
+.day.today{outline:2px solid #e8c95a}
+.day.has{background:var(--accent);color:#fff}
+.day.blank{visibility:hidden}
+.slotdate{padding:8px 0;border-bottom:1px solid var(--line)}
+.slotdate:last-child{border-bottom:0}
+.hourchip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:7px;padding:1px 4px 1px 8px;font-size:13px;margin:3px 4px 0 0;background:#fff}
+.hourchip button{border:0;background:none;color:var(--sub);cursor:pointer;font-size:14px;padding:0 3px}
+
+/* input */
+.dgroup{margin-top:10px}
+.dgroup .dh{display:flex;justify-content:space-between;align-items:center;font-weight:700;background:#f4f7f1;border-radius:8px;padding:5px 10px}
+.slotrow{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--line)}
+.slotrow:last-child{border-bottom:0}
+.seg{display:flex;gap:6px}
+.seg button{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:#f2f2f0;font-size:19px;cursor:pointer;color:#b5b8b2;font-weight:700}
+.seg button.on[data-v=o]{background:var(--ok);border-color:var(--ok);color:#fff}
+.seg button.on[data-v=t]{background:var(--maybe);border-color:var(--maybe);color:#fff}
+.seg button.on[data-v=x]{background:var(--ng);border-color:var(--ng);color:#fff}
+.mini{font-size:12px;padding:3px 8px;border-radius:7px}
+.submit{display:block;margin:18px auto 4px;width:150px;height:150px;border-radius:50%;border:0;background:radial-gradient(circle at 40% 30%,#6cc04a,#3f8f22);color:#fff;font:inherit;font-size:22px;font-weight:700;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,.12)}
+.submit:disabled{opacity:.5;cursor:default}
+
+/* table */
+.songpick{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.scroll{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+th,td{padding:6px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;font-size:14px}
+thead th{background:#f4f7f1;font-weight:500;font-size:13px;position:sticky;top:0;z-index:2}
+thead th.mem{cursor:pointer;color:var(--accent2);text-decoration:underline dotted}
+thead th.mem.unans{color:var(--unk);cursor:default;text-decoration:none}
+.stk{position:sticky;left:0;background:#fff;text-align:left;z-index:3;border-right:1px solid var(--line)}
+thead .stk{background:#f4f7f1;z-index:4}
+tr.dateh td{background:#f9faf7;font-weight:700;text-align:left;font-size:13px}
+tr.dateh td.stk{background:#f9faf7}
+tr.ok td{background:var(--okbg)} tr.ok td.stk{background:var(--okbg)}
+tr.maybe td{background:var(--maybebg)} tr.maybe td.stk{background:var(--maybebg)}
+.cnt{color:var(--sub);font-size:12px;width:30px}
+.s-o{color:var(--ok);font-weight:700;font-size:17px}.s-t{color:var(--maybe);font-weight:700;font-size:17px}
+.s-x{color:var(--ng);font-weight:700;font-size:17px}.s-u{color:var(--unk)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--sub);margin:8px 2px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:4px}
+.ranges{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.ranges .r{display:flex;gap:8px;align-items:baseline}
+.badge{font-size:12px;border-radius:6px;padding:1px 7px}
+.songcard{border:1px solid var(--line);border-radius:11px;padding:10px}
+.songcard .chips{margin-top:8px}
+.comments div{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.comments div:last-child{border-bottom:0}
+.back{display:inline-block;color:var(--accent2);text-decoration:none;font-size:14px;margin-bottom:4px}
+.evitem{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:11px;padding:12px;margin-bottom:8px;font:inherit;color:var(--ink);cursor:pointer}
+.evitem:hover{border-color:var(--accent)}
+.evitem b{display:block;font-size:16px}
+.evitem span{color:var(--sub);font-size:13px}
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+<header>
+  <div class="row" style="justify-content:space-between"><a href="#" id="backLink" class="back" hidden>‹ イベント一覧</a><button class="btn mini" id="copyUrlTop" hidden>🔗 リンクをコピー</button></div>
+  <h1><span class="flag">⚑</span><span id="titleView">バンド日程調整</span></h1>
+  <div id="memoView"></div>
+  <p id="status">読み込み中…</p>
+</header>
+<div id="homeView">
+  <main>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">イベント一覧</h2>
+        <button class="btn primary" id="createEv">＋ 新しいイベントを作成</button>
+      </div>
+      <div id="evList" style="margin-top:12px"></div>
+    </div>
+  </main>
+</div>
+<div id="eventView" hidden>
+<nav class="tabs" role="tablist">
+  <button data-tab="table" role="tab">日程表</button>
+  <button data-tab="answer" role="tab">出欠を入力</button>
+  <button data-tab="setup" role="tab">設定</button>
+</nav>
+<main>
+  <!-- 日程表 -->
+  <section id="tab-table">
+    <div class="card">
+      <h2>曲を選ぶ</h2>
+      <div id="songPick" class="songpick"></div>
+      <label class="hint" style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="onlyOk"> そろう時間だけ表示する</label>
+      <div id="rangeSummary"></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--okbg)"></i>表示中のメンバー全員○</span>
+      <span><i style="background:var(--maybebg)"></i>×はいないが△がいる</span>
+      <span>名前をタップするとその人の回答を修正できます</span>
+    </div>
+    <div id="tableArea"></div>
+    <div id="commentArea"></div>
+  </section>
+
+  <!-- 出欠を入力 -->
+  <section id="tab-answer">
+    <div class="card">
+      <h2>出欠を入力する</h2>
+      <div id="rosterPick"></div>
+      <div class="field">
+        <label for="fName">名前</label>
+        <input type="text" id="fName" maxlength="30" placeholder="名前" autocomplete="off">
+        <div id="editNote" class="hint"></div>
+      </div>
+      <div class="field">
+        <label>日程候補</label>
+        <div id="slotForm"></div>
+      </div>
+      <div class="field">
+        <label for="fComment">コメント</label>
+        <input type="text" id="fComment" maxlength="120" placeholder="例: 20時以降なら確実です" style="width:100%">
+      </div>
+      <button class="submit" id="submitBtn">入力する</button>
+      <div class="row" style="justify-content:center;margin-top:8px" id="formExtra"></div>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section id="tab-setup">
+    <div class="grid2">
+      <div class="card">
+        <h2>イベント名</h2>
+        <input type="text" id="sTitle" maxlength="60" placeholder="例: 12月ライブ 練習日程" style="width:100%" data-keep>
+        <h2 style="margin-top:14px">メモ</h2>
+        <textarea id="sMemo" maxlength="400" placeholder="例: 〆切は11/10です" data-keep></textarea>
+        <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn primary" id="saveInfo">保存</button></div>
+      </div>
+      <div class="card">
+        <h2>日程候補（1時間ごと）</h2>
+        <div class="row" style="margin-bottom:8px">
+          <select id="hStart"></select><span>〜</span><select id="hEnd"></select>
+          <span class="hint">の時間帯で追加</span>
+        </div>
+        <div class="cal">
+          <div class="calhead"><button id="calPrev" aria-label="前の月">‹</button><span id="calTitle"></span><button id="calNext" aria-label="次の月">›</button></div>
+          <div class="calgrid" id="calGrid"></div>
+        </div>
+        <p class="hint">日付をタップすると、上の時間帯が1時間ごとの枠で追加されます。緑の日付をもう一度タップするとその日を外します。</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>登録済みの日程候補</h2>
+      <div id="slotList"></div>
+    </div>
+    <div class="card">
+      <h2>曲とメンバー</h2>
+      <p class="hint">曲ごとに演奏するメンバーを登録すると、日程表で曲を選んだときにその人たちだけが表示されます。まだ出欠を入力していない人も名前で追加できます（出欠入力の名前と同じ表記にしてください）。</p>
+      <div id="songList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+      <form class="row" id="addSong"><input type="text" id="newSong" maxlength="60" placeholder="曲名"><button class="btn primary">曲を追加</button></form>
+    </div>
+    <div class="card">
+      <h2>このイベントの操作</h2>
+      <label class="hint" for="shareUrl">このイベントのリンク（メンバーに送るとこのイベントが直接開きます）</label>
+      <div class="row" style="margin:4px 0 12px"><input type="text" id="shareUrl" readonly style="flex:1"><button class="btn" id="copyUrl">コピー</button></div>
+      <div class="row">
+        <button class="btn" id="copyEv">曲とメンバーを引き継いで新しいイベントを作成</button>
+        <button class="btn danger" id="delEv">このイベントを削除</button>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+<datalist id="rosterList"></datalist>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newId = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const WD = '日月火水木金土';
+const pad = n => String(n).padStart(2, '0');
+const ymd = dt => `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+function fmtDate(d){ const p = String(d).split('-').map(Number); const dt = new Date(p[0], p[1]-1, p[2]); return `${p[1]}/${p[2]}(${WD[dt.getDay()]})`; }
+const slotIdOf = (date, hour) => `${date}_${pad(hour)}`;
+const slotFromId = id => ({id, date: id.slice(0, 10), hour: +id.slice(11)});
+const hourLabel = h => `${h}:00〜`;
+const SYM = {o:'○', t:'△', x:'×'};
+const normName = s => String(s||'').trim().replace(/\s+/g, ' ');
+// ↓ Apps Script をデプロイしたときの「ウェブアプリの URL」（…/exec）
+const API_URL = 'https://script.google.com/macros/s/AKfycby0704isVTr-0y7dr-5KQvjZo5ees87-eBfdHtpM3Yr0XweOYzyY3izH9Tm06zkkeS6/exec';
+
+/* ---------- サーバー呼び出し ---------- */
+// text/plain で送ると事前確認（CORS プリフライト）なしで Apps Script に届く。
+// 別サイトからの通信なので Google のログイン情報は送られず、複数アカウントでも問題が起きない。
+async function api(fn, ...args){
+  let res;
+  try {
+    res = await fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({fn, args})});
+  } catch(e){ throw new Error('サーバーに接続できませんでした'); }
+  let j;
+  try { j = await res.json(); } catch(e){ throw new Error('サーバーの応答を読めませんでした（Apps Script のデプロイ設定を確認してください）'); }
+  if (!j.ok) throw new Error(j.error || 'エラーが発生しました');
+  return j.data;
+}
+const errMsg = e => (e && e.message ? String(e.message).replace(/^Error:\s*/, '') : '通信に失敗しました');
+
+/* ---------- state ---------- */
+let cfg = emptyCfg(), entries = {}, evId = null, events = [], eventsLoaded = false, evLoaded = false;
+let songSel = 'all', inflight = 0;
+try { songSel = localStorage.getItem('band-song') || 'all'; } catch(e) {}
+function emptyCfg(){ return {title:'', memo:'', slots:[], songs:[]}; }
+function applyServer(d){
+  if (!d){ setStatus('このイベントは見つかりませんでした（削除された可能性があります）。', true); goHome(); return; }
+  if (d.event.id !== evId) return;
+  cfg = {title:d.event.title, memo:d.event.memo, slots:d.event.slots.map(slotFromId), songs:d.event.songs};
+  const next = {}; d.entries.forEach(e => { next[e.id] = {name: normName(e.name), marks: e.marks || {}, comment: e.comment || '', createdAt: e.createdAt || 0}; });
+  entries = next; evLoaded = true;
+  renderAll();
+}
+
+/* ---------- status ---------- */
+let statusWarn = false;
+function setStatus(msg, warn){ statusWarn = !!warn; const el = $('#status'); el.textContent = msg; el.className = warn ? 'warn' : ''; }
+function busyStatus(){ if (inflight > 0) setStatus('保存中…'); }
+
+/* ---------- tabs ---------- */
+function showTab(t){
+  document.querySelectorAll('#eventView main section').forEach(s => s.classList.toggle('active', s.id === 'tab-'+t));
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { showTab(b.dataset.tab); window.scrollTo(0,0); }));
+
+/* ---------- helpers ---------- */
+const sortedSlots = () => [...cfg.slots].sort((a,b) => a.id.localeCompare(b.id));
+function groupByDate(slots){ const g = []; slots.forEach(s => { let last = g[g.length-1]; if (!last || last.date !== s.date){ last = {date:s.date, slots:[]}; g.push(last); } last.slots.push(s); }); return g; }
+const entryList = () => Object.entries(entries).map(([id,e]) => ({id, ...e})).sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
+const entryByName = name => entryList().find(e => normName(e.name) === normName(name));
+function roster(){
+  const names = [], seen = new Set();
+  const add = n => { const k = normName(n); if (k && !seen.has(k)){ seen.add(k); names.push(k); } };
+  entryList().forEach(e => add(e.name)); cfg.songs.forEach(s => (s.members||[]).forEach(add));
+  return names;
+}
+const markOf = (entry, sid) => { const v = entry?.marks?.[sid]; return (v==='o'||v==='t'||v==='x') ? v : null; };
+function columns(){
+  const song = cfg.songs.find(s => s.id === songSel);
+  if (!song) return entryList().map(e => ({name:e.name, entry:e}));
+  return (song.members||[]).map(n => ({name:n, entry: entryByName(n) || null}));
+}
+function slotLevel(cols, sid){
+  if (!cols.length) return {lv:'', o:0, t:0, x:0, u:0};
+  let o=0,t=0,x=0,u=0;
+  cols.forEach(c => { const v = markOf(c.entry, sid); if (v==='o') o++; else if (v==='t') t++; else if (v==='x') x++; else u++; });
+  return {lv: (o === cols.length) ? 'ok' : (!x && !u) ? 'maybe' : '', o, t, x, u};
+}
+
+/* ---------- イベントの変更（楽観的に反映してからサーバーへ） ---------- */
+function mutate(op, p, local){
+  if (!evId) return;
+  local(); renderAll();
+  const id = evId; inflight++; busyStatus();
+  api('apiUpdateEvent', id, op, p).then(d => {
+    inflight--;
+    if (inflight === 0){ setStatus('保存しました。'); if (id === evId) applyServer(d); }
+  }).catch(e => {
+    inflight--;
+    setStatus('保存に失敗しました：' + errMsg(e), true);
+    if (inflight === 0 && id === evId) refresh();
+  });
+}
+function refresh(){
+  if (!evId || inflight) return Promise.resolve();
+  const id = evId;
+  return api('apiGetEvent', id).then(d => { if (id === evId && !inflight) applyServer(d); })
+    .catch(e => setStatus('読み込みに失敗しました：' + errMsg(e), true));
+}
+
+/* ---------- header ---------- */
+function shareLink(){ return `${location.origin}${location.pathname}?ev=${encodeURIComponent(evId)}`; }
+function renderHeader(){
+  const inEv = !!evId;
+  $('#backLink').hidden = !inEv;
+  $('#copyUrlTop').hidden = !inEv;
+  $('#titleView').textContent = inEv ? (evLoaded ? (cfg.title || '（無題のイベント）') : '読み込み中…') : 'バンド日程調整';
+  $('#memoView').textContent = inEv ? (cfg.memo || '') : '';
+  $('#shareUrl').value = inEv ? shareLink() : '';
+}
+async function copyText(text, btn){
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch(e) {
+    try { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); } catch(_) {}
+  }
+  const old = btn.textContent; btn.textContent = ok ? 'コピーしました' : 'コピーできませんでした'; setTimeout(() => btn.textContent = old, 1800);
+  if (!ok){ $('#shareUrl').focus(); $('#shareUrl').select(); }
+}
+$('#copyUrl').addEventListener('click', e => copyText(shareLink(), e.target));
+$('#copyUrlTop').addEventListener('click', e => copyText(shareLink(), e.target));
+
+/* ---------- イベント一覧 ---------- */
+function renderHome(){
+  if (!eventsLoaded){ $('#evList').innerHTML = '<p class="hint">読み込み中…</p>'; return; }
+  const list = [...events].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+  $('#evList').innerHTML = list.length ? list.map(e => {
+    const dates = [...new Set(e.slots.map(s => s.slice(0,10)))].sort();
+    const range = dates.length ? (dates.length > 1 ? `${fmtDate(dates[0])} 〜 ${fmtDate(dates[dates.length-1])}（${dates.length}日）` : fmtDate(dates[0])) : '日程候補なし';
+    return `<button class="evitem" data-ev="${esc(e.id)}"><div><b>${esc(e.title || '（無題のイベント）')}</b><span>${range}・曲 ${e.songCount}</span></div><span>›</span></button>`;
+  }).join('') : '<p class="empty">まだイベントがありません。「新しいイベントを作成」から始めてください。</p>';
+}
+function loadEvents(){
+  return api('apiListEvents').then(l => { events = l; eventsLoaded = true; if (!evId) renderHome(); })
+    .catch(e => { eventsLoaded = true; setStatus('イベント一覧の読み込みに失敗しました：' + errMsg(e), true); renderHome(); });
+}
+$('#evList').addEventListener('click', e => { const b = e.target.closest('[data-ev]'); if (b) openEvent(b.dataset.ev, true); });
+async function createEvent(copyFrom, btn){
+  if (btn) btn.disabled = true;
+  setStatus('作成中…');
+  try {
+    const id = await api('apiCreateEvent', copyFrom || '');
+    setStatus('イベントを作成しました。');
+    openEvent(id, true, 'setup');
+  } catch(e){ setStatus('作成に失敗しました：' + errMsg(e), true); }
+  if (btn) btn.disabled = false;
+}
+$('#createEv').addEventListener('click', e => createEvent(null, e.target));
+$('#copyEv').addEventListener('click', e => createEvent(evId, e.target));
+$('#delEv').addEventListener('click', e => {
+  armOrRun(e.target, async () => {
+    e.target.disabled = true;
+    try { await api('apiDeleteEvent', evId); setStatus('イベントを削除しました。'); goHome(); }
+    catch(err){ setStatus('削除に失敗しました：' + errMsg(err), true); }
+    e.target.disabled = false;
+  });
+});
+
+/* ---------- 画面遷移 ---------- */
+function pushUrl(id){ try { history.pushState({ev:id||''}, '', id ? `${location.pathname}?ev=${encodeURIComponent(id)}` : location.pathname); } catch(e) {} }
+function goHome(push = true){ openEvent(null, push); }
+function openEvent(id, push, tab){
+  evId = id || null; cfg = emptyCfg(); entries = {}; evLoaded = false;
+  form = {editId:null, marks:{}}; $('#fName').value = ''; $('#fComment').value = ''; infoDirty = false;
+  $('#homeView').hidden = !!evId; $('#eventView').hidden = !evId;
+  window.scrollTo(0,0);
+  if (push) pushUrl(evId);
+  renderHeader();
+  if (!evId){ renderHome(); loadEvents(); return; }
+  showTab(tab || 'table'); renderAll();
+  const myId = evId;
+  api('apiGetEvent', myId).then(d => {
+    if (myId !== evId) return;
+    applyServer(d);
+    if (d && !tab) showTab(cfg.slots.length ? 'table' : 'setup');
+  }).catch(e => setStatus('読み込みに失敗しました：' + errMsg(e), true));
+}
+$('#backLink').addEventListener('click', e => { e.preventDefault(); goHome(); });
+window.addEventListener('popstate', () => openEvent(new URLSearchParams(location.search).get('ev') || null, false));
+
+/* ---------- 日程表 ---------- */
+function mergeRanges(slots){
+  const out = [];
+  groupByDate(slots).forEach(g => {
+    let st = null, prev = null;
+    g.slots.forEach(s => {
+      if (st !== null && s.hour === prev + 1){ prev = s.hour; return; }
+      if (st !== null) out.push({date:g.date, from:st, to:prev+1});
+      st = s.hour; prev = s.hour;
+    });
+    if (st !== null) out.push({date:g.date, from:st, to:prev+1});
+  });
+  return out;
+}
+function renderTable(){
+  const songs = cfg.songs;
+  if (!songs.find(s => s.id === songSel)) songSel = 'all';
+  $('#songPick').innerHTML = `<button class="chip" data-song="all" aria-pressed="${songSel==='all'}">全員</button>` +
+    songs.map(s => `<button class="chip" data-song="${esc(s.id)}" aria-pressed="${songSel===s.id}">${esc(s.title)}</button>`).join('') +
+    (songs.length ? '' : '<span class="hint">「設定」で曲とメンバーを登録すると、曲ごとに絞り込めます。</span>');
+  const area = $('#tableArea'), rs = $('#rangeSummary');
+  const slots = sortedSlots();
+  if (!evLoaded){ area.innerHTML = '<div class="card empty">読み込み中…</div>'; rs.innerHTML = ''; $('#commentArea').innerHTML = ''; return; }
+  if (!slots.length){ area.innerHTML = '<div class="card empty">日程候補がまだありません。「設定」のカレンダーから追加してください。</div>'; rs.innerHTML=''; $('#commentArea').innerHTML=''; return; }
+  const cols = columns();
+  const onlyOk = $('#onlyOk').checked;
+  const song = songs.find(s => s.id === songSel);
+  if (cols.length){
+    const okR = mergeRanges(slots.filter(s => slotLevel(cols, s.id).lv === 'ok'));
+    const mbR = mergeRanges(slots.filter(s => ['ok','maybe'].includes(slotLevel(cols, s.id).lv)));
+    const unans = cols.filter(c => !c.entry).map(c => c.name);
+    const fmtR = r => `${fmtDate(r.date)} ${r.from}:00〜${r.to}:00`;
+    rs.innerHTML = `<div style="margin-top:10px">
+      <div class="hint"><b style="color:var(--ink)">${song ? esc(song.title) : '全員'}</b>（${cols.map(c=>esc(c.name)).join('・')}）がそろう時間</div>
+      <div class="ranges">${okR.length ? okR.map(r => `<div class="r"><span class="badge" style="background:var(--okbg);color:var(--ok)">全員○</span>${fmtR(r)}</div>`).join('') : '<div class="hint">全員○の時間はまだありません。</div>'}
+      ${mbR.filter(r => !okR.some(o => o.date===r.date && o.from===r.from && o.to===r.to)).map(r => `<div class="r"><span class="badge" style="background:var(--maybebg);color:var(--maybe)">△含む</span>${fmtR(r)}</div>`).join('')}</div>
+      ${unans.length ? `<div class="hint" style="color:var(--ng)">未回答: ${unans.map(esc).join('、')}</div>` : ''}</div>`;
+  } else rs.innerHTML = song ? '<p class="hint">この曲にはメンバーが登録されていません。</p>' : '';
+  if (!cols.length){ area.innerHTML = `<div class="card empty">${song ? 'この曲のメンバーを「設定」で登録してください。' : 'まだ誰も出欠を入力していません。'}</div>`; $('#commentArea').innerHTML=''; return; }
+
+  let h = '<div class="scroll"><table><thead><tr><th class="stk">日時</th><th class="cnt">○</th><th class="cnt">△</th><th class="cnt">×</th>';
+  cols.forEach(c => { h += c.entry ? `<th class="mem" data-eid="${esc(c.entry.id)}">${esc(c.name)}</th>` : `<th class="mem unans">${esc(c.name)}<br><small>未回答</small></th>`; });
+  h += '</tr></thead><tbody>';
+  let shown = 0;
+  groupByDate(slots).forEach(g => {
+    const rows = g.slots.map(s => ({s, L: slotLevel(cols, s.id)})).filter(r => !onlyOk || r.L.lv);
+    if (!rows.length) return;
+    h += `<tr class="dateh"><td class="stk">${fmtDate(g.date)}</td><td colspan="${3+cols.length}"></td></tr>`;
+    rows.forEach(({s, L}) => {
+      shown++;
+      h += `<tr class="${L.lv}"><td class="stk">${hourLabel(s.hour)}</td><td class="cnt">${L.o}</td><td class="cnt">${L.t}</td><td class="cnt">${L.x}</td>`;
+      cols.forEach(c => { const v = markOf(c.entry, s.id); h += `<td class="${v?'s-'+v:'s-u'}">${v ? SYM[v] : '−'}</td>`; });
+      h += '</tr>';
+    });
+  });
+  h += '</tbody></table></div>';
+  area.innerHTML = shown ? h : '<div class="card empty">そろう時間はまだありません。</div>';
+  const cm = cols.filter(c => c.entry && c.entry.comment);
+  $('#commentArea').innerHTML = cm.length ? `<div class="card comments"><h2>コメント</h2>${cm.map(c => `<div><b>${esc(c.name)}</b>：${esc(c.entry.comment)}</div>`).join('')}</div>` : '';
+}
+$('#songPick').addEventListener('click', e => {
+  const b = e.target.closest('[data-song]'); if (!b) return;
+  songSel = b.dataset.song; try { localStorage.setItem('band-song', songSel); } catch(_) {}
+  renderTable();
+});
+$('#onlyOk').addEventListener('change', renderTable);
+$('#tableArea').addEventListener('click', e => {
+  const th = e.target.closest('th.mem[data-eid]'); if (!th) return;
+  loadForm(th.dataset.eid); showTab('answer'); window.scrollTo(0,0);
+});
+
+/* ---------- 出欠を入力 ---------- */
+let form = {editId:null, marks:{}};
+function loadForm(eid){
+  const e = eid && entries[eid];
+  form = {editId: e ? eid : null, marks: e ? {...(e.marks||{})} : {}};
+  $('#fName').value = e ? e.name : '';
+  $('#fComment').value = e ? (e.comment||'') : '';
+  renderForm();
+}
+function renderForm(){
+  const slots = sortedSlots();
+  const ros = roster();
+  const answered = new Set(entryList().map(e => normName(e.name)));
+  $('#rosterList').innerHTML = ros.map(n => `<option value="${esc(n)}">`).join('');
+  $('#rosterPick').innerHTML = ros.length ? `<div class="field"><label>名前を選ぶ（回答済みの人はタップで修正）</label><div class="chips">${
+    ros.map(n => `<button class="chip small ${answered.has(n)?'':'ghost'}" data-pick="${esc(n)}" aria-pressed="${normName($('#fName').value)===n}">${esc(n)}${answered.has(n)?' ✓':''}</button>`).join('')
+  }</div></div>` : '';
+  const cur = entryByName($('#fName').value);
+  if (cur && cur.id !== form.editId){ form = {editId: cur.id, marks: {...(cur.marks||{})}}; if (!$('#fComment').value) $('#fComment').value = cur.comment || ''; }
+  else if (!cur && form.editId && !entries[form.editId]) form.editId = null;
+  $('#editNote').textContent = form.editId ? '回答済みの内容を修正しています。' : '';
+  if (!slots.length){ $('#slotForm').innerHTML = `<p class="hint">${evLoaded ? '日程候補がまだありません。' : '読み込み中…'}</p>`; }
+  else {
+    $('#slotForm').innerHTML = groupByDate(slots).map(g => `<div class="dgroup"><div class="dh"><span>${fmtDate(g.date)}</span>
+      <span class="row" style="gap:4px"><button class="btn mini" data-dayall="${esc(g.date)}" data-v="o">全部○</button><button class="btn mini" data-dayall="${esc(g.date)}" data-v="x">全部×</button></span></div>
+      ${g.slots.map(s => `<div class="slotrow"><span>${hourLabel(s.hour)}</span><div class="seg" data-sid="${esc(s.id)}">${
+        ['o','t','x'].map(k => `<button data-v="${k}" class="${form.marks[s.id]===k?'on':''}" aria-label="${SYM[k]}">${SYM[k]}</button>`).join('')}</div></div>`).join('')}
+    </div>`).join('');
+  }
+  if (!saving){ $('#submitBtn').disabled = !evLoaded; $('#submitBtn').textContent = form.editId ? '修正する' : '入力する'; }
+  $('#formExtra').innerHTML = form.editId ? `<button class="btn" id="newEntry">新しく入力する</button><button class="btn danger" id="delEntry">この人の回答を削除</button>` : '';
+}
+$('#fName').setAttribute('list', 'rosterList');
+$('#fName').addEventListener('input', () => { if (!entryByName($('#fName').value) && form.editId) form.editId = null; renderForm(); });
+$('#rosterPick').addEventListener('click', e => {
+  const b = e.target.closest('[data-pick]'); if (!b) return;
+  const ent = entryByName(b.dataset.pick);
+  if (ent) loadForm(ent.id); else { form = {editId:null, marks: form.editId ? {} : form.marks}; $('#fName').value = b.dataset.pick; renderForm(); }
+});
+$('#slotForm').addEventListener('click', e => {
+  const all = e.target.closest('[data-dayall]');
+  if (all){ cfg.slots.filter(s => s.date === all.dataset.dayall).forEach(s => form.marks[s.id] = all.dataset.v); renderForm(); return; }
+  const b = e.target.closest('.seg button'); if (!b) return;
+  const sid = b.parentElement.dataset.sid, v = b.dataset.v;
+  if (form.marks[sid] === v) delete form.marks[sid]; else form.marks[sid] = v;
+  b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', form.marks[sid] === x.dataset.v));
+});
+let saving = false;
+$('#submitBtn').addEventListener('click', async () => {
+  const name = normName($('#fName').value);
+  if (!name){ $('#fName').focus(); $('#editNote').textContent = '名前を入力してください。'; return; }
+  const valid = new Set(cfg.slots.map(s => s.id));
+  const marks = {}; Object.entries(form.marks).forEach(([k,v]) => { if (valid.has(k)) marks[k] = v; });
+  const btn = $('#submitBtn'); btn.disabled = true; btn.textContent = '保存中…'; saving = true;
+  const id = evId;
+  try {
+    const d = await api('apiSaveEntry', id, {id: form.editId, name, marks, comment: $('#fComment').value.trim()});
+    saving = false;
+    if (id !== evId) return;
+    applyServer(d); loadForm(null);
+    setStatus(`${name} さんの出欠を保存しました。`);
+    showTab('table'); window.scrollTo(0,0);
+  } catch(e){ saving = false; setStatus('保存に失敗しました：' + errMsg(e), true); renderForm(); }
+});
+let armedEl = null, armT = null;
+function armOrRun(el, run){
+  if (armedEl !== el){
+    document.querySelectorAll('.armed').forEach(x => { x.classList.remove('armed'); x.textContent = x.dataset.label || x.textContent; });
+    armedEl = el; el.dataset.label = el.textContent; el.classList.add('armed'); el.textContent = 'もう一度押して削除';
+    clearTimeout(armT); armT = setTimeout(() => { if (armedEl){ armedEl.classList.remove('armed'); armedEl.textContent = armedEl.dataset.label; armedEl = null; } }, 3000);
+    return;
+  }
+  armedEl = null; run();
+}
+$('#formExtra').addEventListener('click', e => {
+  if (e.target.id === 'newEntry'){ loadForm(null); return; }
+  if (e.target.id === 'delEntry'){
+    armOrRun(e.target, async () => {
+      const eid = form.editId; if (!eid) return;
+      try { const d = await api('apiDeleteEntry', evId, eid); loadForm(null); applyServer(d); setStatus('回答を削除しました。'); }
+      catch(err){ setStatus('削除に失敗しました：' + errMsg(err), true); }
+    });
+  }
+});
+
+/* ---------- 設定 ---------- */
+const today = new Date(); today.setHours(0,0,0,0);
+let calMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+(function initHours(){
+  let hs = 18, he = 22;
+  try { hs = +(localStorage.getItem('band-hs') ?? 18); he = +(localStorage.getItem('band-he') ?? 22); } catch(e) {}
+  $('#hStart').innerHTML = Array.from({length:24}, (_,i) => `<option value="${i}" ${i===hs?'selected':''}>${i}:00</option>`).join('');
+  $('#hEnd').innerHTML = Array.from({length:24}, (_,i) => i+1).map(i => `<option value="${i}" ${i===he?'selected':''}>${i}:00</option>`).join('');
+  ['hStart','hEnd'].forEach(id => $('#'+id).addEventListener('change', () => {
+    if (+$('#hEnd').value <= +$('#hStart').value) $('#hEnd').value = Math.min(24, +$('#hStart').value + 1);
+    try { localStorage.setItem('band-hs', $('#hStart').value); localStorage.setItem('band-he', $('#hEnd').value); } catch(e) {}
+  }));
+})();
+function renderCal(){
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  $('#calTitle').textContent = `${y}年${m+1}月`;
+  $('#calPrev').disabled = (y === today.getFullYear() && m === today.getMonth());
+  const has = new Set(cfg.slots.map(s => s.date));
+  let h = [...WD].map((w,i) => `<div class="wd ${i===0?'sun':i===6?'sat':''}">${w}</div>`).join('');
+  const first = new Date(y, m, 1).getDay(), days = new Date(y, m+1, 0).getDate();
+  for (let i = 0; i < first; i++) h += '<button class="day blank" tabindex="-1" disabled></button>';
+  for (let d = 1; d <= days; d++){
+    const dt = new Date(y, m, d), key = ymd(dt);
+    h += `<button class="day ${has.has(key)?'has':''} ${dt.getTime()===today.getTime()?'today':''}" data-date="${key}" ${dt < today || !evLoaded ? 'disabled' : ''}>${d}</button>`;
+  }
+  $('#calGrid').innerHTML = h;
+}
+$('#calPrev').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()-1, 1); renderCal(); });
+$('#calNext').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 1); renderCal(); });
+$('#calGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-date]'); if (!b) return;
+  const date = b.dataset.date;
+  if (cfg.slots.some(s => s.date === date)) mutate('removeDate', {date}, () => { cfg.slots = cfg.slots.filter(s => s.date !== date); });
+  else {
+    const hs = +$('#hStart').value, he = +$('#hEnd').value, ids = [];
+    for (let h = hs; h < he; h++) ids.push(slotIdOf(date, h));
+    mutate('addSlots', {ids}, () => { cfg.slots = [...cfg.slots, ...ids.map(slotFromId)]; });
+  }
+});
+function renderSlotList(){
+  const g = groupByDate(sortedSlots());
+  $('#slotList').innerHTML = g.length ? g.map(x => `<div class="slotdate"><div class="row" style="justify-content:space-between"><b>${fmtDate(x.date)}</b>
+    <span class="row" style="gap:4px"><button class="btn mini" data-addh="${esc(x.date)}" data-dir="-1">前に1時間</button><button class="btn mini" data-addh="${esc(x.date)}" data-dir="1">後に1時間</button><button class="btn mini danger" data-deldate="${esc(x.date)}">この日を削除</button></span></div>
+    <div>${x.slots.map(s => `<span class="hourchip">${s.hour}:00<button data-delslot="${esc(s.id)}" aria-label="削除">×</button></span>`).join('')}</div></div>`).join('')
+    : '<p class="hint">まだありません。上のカレンダーで日付をタップしてください。</p>';
+}
+$('#slotList').addEventListener('click', e => {
+  const ds = e.target.closest('[data-delslot]');
+  if (ds){ const id = ds.dataset.delslot; mutate('removeSlots', {ids:[id]}, () => { cfg.slots = cfg.slots.filter(s => s.id !== id); }); return; }
+  const dd = e.target.closest('[data-deldate]');
+  if (dd){ const date = dd.dataset.deldate; armOrRun(dd, () => mutate('removeDate', {date}, () => { cfg.slots = cfg.slots.filter(s => s.date !== date); })); return; }
+  const ah = e.target.closest('[data-addh]');
+  if (ah){
+    const date = ah.dataset.addh, hours = cfg.slots.filter(s => s.date === date).map(s => s.hour);
+    const h = ah.dataset.dir === '1' ? Math.max(...hours) + 1 : Math.min(...hours) - 1;
+    if (h < 0 || h > 23) return;
+    const id = slotIdOf(date, h);
+    mutate('addSlots', {ids:[id]}, () => { cfg.slots = [...cfg.slots, slotFromId(id)]; });
+  }
+});
+let infoDirty = false;
+['#sTitle','#sMemo'].forEach(s => $(s).addEventListener('input', () => infoDirty = true));
+$('#saveInfo').addEventListener('click', () => {
+  const title = $('#sTitle').value.trim(), memo = $('#sMemo').value.trim();
+  infoDirty = false;
+  mutate('info', {title, memo}, () => { cfg.title = title; cfg.memo = memo; });
+});
+function editingSongs(){ const a = document.activeElement; return a && a.closest && a.closest('#songList') && a.tagName === 'INPUT'; }
+let songsDirty = false;
+document.addEventListener('focusout', () => setTimeout(() => { if (songsDirty && !editingSongs()) renderSongList(); }, 0));
+function renderSongList(){
+  if (editingSongs()){ songsDirty = true; return; } songsDirty = false;
+  const ros = roster();
+  $('#songList').innerHTML = cfg.songs.length ? cfg.songs.map(s => {
+    const mem = s.members || [];
+    const others = ros.filter(n => !mem.includes(n));
+    return `<div class="songcard" data-sid="${esc(s.id)}">
+      <div class="row"><input type="text" value="${esc(s.title)}" data-rename maxlength="60"><button class="btn danger" data-delsong>削除</button></div>
+      <div class="chips">${mem.map(n => `<span class="chip small" aria-pressed="true">${esc(n)} <span data-rmmem="${esc(n)}" style="cursor:pointer;margin-left:4px">×</span></span>`).join('') || '<span class="hint">メンバー未登録</span>'}</div>
+      <div class="chips">${others.map(n => `<button class="chip small ghost" data-addmem="${esc(n)}">＋ ${esc(n)}</button>`).join('')}</div>
+      <div class="row" style="margin-top:8px"><input type="text" placeholder="名前を入力して追加" list="rosterList" data-newmem maxlength="30"><button class="btn" data-addtyped>追加</button></div>
+    </div>`;
+  }).join('') : '<p class="hint">まだ曲がありません。</p>';
+}
+$('#addSong').addEventListener('submit', e => {
+  e.preventDefault();
+  const title = $('#newSong').value.trim(); if (!title) return;
+  const songId = newId(); $('#newSong').value = '';
+  mutate('addSong', {songId, title}, () => { cfg.songs = [...cfg.songs, {id:songId, title, members:[]}]; });
+});
+function localSong(sid, fn){ cfg.songs = cfg.songs.map(s => s.id === sid ? fn({...s, members:[...(s.members||[])]}) : s); }
+$('#songList').addEventListener('click', e => {
+  const card = e.target.closest('[data-sid]'); if (!card) return;
+  const sid = card.dataset.sid;
+  const del = e.target.closest('[data-delsong]');
+  if (del){ armOrRun(del, () => mutate('deleteSong', {songId:sid}, () => { cfg.songs = cfg.songs.filter(s => s.id !== sid); })); return; }
+  const rm = e.target.closest('[data-rmmem]');
+  if (rm){ const name = rm.dataset.rmmem; mutate('removeMember', {songId:sid, name}, () => localSong(sid, s => ({...s, members: s.members.filter(n => n !== name)}))); return; }
+  const ad = e.target.closest('[data-addmem]');
+  if (ad){ const name = ad.dataset.addmem; mutate('addMember', {songId:sid, name}, () => localSong(sid, s => ({...s, members:[...s.members, name]}))); return; }
+  if (e.target.closest('[data-addtyped]')){
+    const inp = card.querySelector('[data-newmem]'); const name = normName(inp.value); if (!name) return;
+    inp.value = ''; inp.blur();
+    mutate('addMember', {songId:sid, name}, () => localSong(sid, s => s.members.includes(name) ? s : ({...s, members:[...s.members, name]})));
+  }
+});
+$('#songList').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-newmem]')){ e.preventDefault(); e.target.closest('.songcard').querySelector('[data-addtyped]').click(); } });
+$('#songList').addEventListener('change', e => {
+  if (!e.target.matches('[data-rename]')) return;
+  const title = e.target.value.trim(), sid = e.target.closest('[data-sid]').dataset.sid;
+  if (title) mutate('renameSong', {songId:sid, title}, () => localSong(sid, s => ({...s, title}))); else renderSongList();
+});
+function renderSetup(){
+  const a = document.activeElement;
+  if (a !== $('#sTitle') && a !== $('#sMemo') && !infoDirty){ $('#sTitle').value = cfg.title; $('#sMemo').value = cfg.memo; }
+  renderCal(); renderSlotList(); renderSongList();
+}
+
+/* ---------- 起動 ---------- */
+function renderAll(){ renderHeader(); renderTable(); renderForm(); renderSetup(); }
+setStatus('');
+const initialEv = new URLSearchParams(location.search).get('ev') || '';
+if (initialEv) openEvent(initialEv, false); else { renderHome(); loadEvents(); }
+// 他の人の入力を取り込むため、表示中は20秒ごとに再読み込み
+setInterval(() => {
+  if (document.visibilityState !== 'visible') return;
+  if (evId){ if (!inflight && !saving && !editingSongs()) refresh(); }
+  else loadEvents();
+}, 20000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && evId) refresh(); });
+</script>
+</body>
+</html>
